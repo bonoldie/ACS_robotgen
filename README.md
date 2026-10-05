@@ -53,6 +53,5 @@ Example configuration:
   - ```length``` the link length on the ```direction``` direction (for prismatic joints the direction is the same as ```axis```)
   - ```mass``` the link mass
 - ```mode``` the generation mode (**random**, **all**), when **random** is selected a batch of #```count``` random (seeded by ```seed```) robots will be generated
-- ```radius```
 
 
