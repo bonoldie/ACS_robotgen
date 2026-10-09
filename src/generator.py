@@ -16,9 +16,9 @@ AXES = {'x': (1, 0, 0), 'y': (0, 1, 0), 'z': (0, 0, 1)}
 MAX_BATCH = 10000
 
 PRISMATIC_COLOR = '0.2 0.55 0.95 1'
-PRISMATIC_JOINT_COLOR = '0.3 0.35 1.0 1'
+PRISMATIC_JOINT_COLOR = '0 0 1.0 1'
 REVOLUTE_COLOR = '0.9 0.35 0.22 1'
-REVOLUTE_JOINT_COLOR = '1.0 0.45 0.32 1'
+REVOLUTE_JOINT_COLOR = '1.0 0 0 1'
 
 @dataclass(frozen=True)
 class Domain:
@@ -192,14 +192,19 @@ def urdf(model, config, name='manipulator'):
     def node(parent, tag, **attrs):
         return ET.SubElement(parent, tag, {k:str(v) for k,v in attrs.items()})
     
-    def link_joint(name, length, mass, direction, radius, color):
+    def link_joint(name, type, length, mass, direction, radius, color):
         link = node(root, 'link', name=name)
         center = vec(scale(direction, length/2))
         rpy = {'x':f'0 {math.pi/2} 0', 'y':f'{-math.pi/2} 0 0', 'z':'0 0 0'}[direction]
         for tag in ('visual', 'collision'):
             part = node(link, tag)
             node(part, 'origin', xyz=center, rpy=rpy)
-            node(node(part, 'geometry'), 'cylinder', radius=fmt(radius), length=fmt(length))
+            
+            if type == 'r':
+                node(node(part, 'geometry'), 'cylinder', radius=fmt(radius*0.95), length=fmt(length))
+            else:
+                node(node(part, 'geometry'), 'box', size=vec([radius*1.8, radius*1.8, length]))
+            
             if tag == 'visual':
                 node(node(part, 'material', name=name+'_color'), 'color', rgba=color)
         
@@ -217,7 +222,7 @@ def urdf(model, config, name='manipulator'):
         
     # base link    
     node(root, 'link', name='world')
-    parent_link_node = link_joint('base_link', float(config['base_height']), 1.0, 'z', float(config['radius'])*2, '0.3 0.35 0.4 1')
+    parent_link_node = link_joint('base_link', 'p', float(config['base_height']), 1.0, 'z', float(config['radius'])*2, '0.3 0.35 0.4 1')
     fixed = node(root, 'joint', name='world_fixed', type='fixed')
     node(fixed, 'parent', link='world'); node(fixed, 'child', link='base_link')
     offset = (0, 0, float(config['base_height']))
@@ -227,7 +232,7 @@ def urdf(model, config, name='manipulator'):
         child = f'link_{i}'
         joint_type = 'revolute' if row['type']=='r' else 'prismatic'
         
-        row_link_node = link_joint(child, row['length'], row['mass'], row['direction'] if row['type'] == 'r' else row['axis'], float(config['radius']), REVOLUTE_COLOR if row['type'] == 'r' else PRISMATIC_COLOR)
+        row_link_node = link_joint(child, row['type'], row['length'], row['mass'], row['direction'] if row['type'] == 'r' else row['axis'], float(config['radius']), REVOLUTE_COLOR if row['type'] == 'r' else PRISMATIC_COLOR)
         joint = node(root, 'joint', name=f'joint_{i}', type=joint_type)
         
         node(joint, 'parent', link=parent)
@@ -252,7 +257,7 @@ def urdf(model, config, name='manipulator'):
         else:   
             node(node(joint_type_visual, 'geometry'), 'box', size=vec([config['radius']*2, config['radius']*2, config['radius']*3]))              
         
-        node(node(joint_type_visual, 'material'), 'color', rgba = REVOLUTE_JOINT_COLOR if row['type'] == 'r' else PRISMATIC_JOINT_COLOR)
+        node(node(joint_type_visual, 'material', name = f"{child}_joint_color"), 'color', rgba = REVOLUTE_JOINT_COLOR if row['type'] == 'r' else PRISMATIC_JOINT_COLOR)
 
         parent_link_node = row_link_node 
         parent, offset = child, scale(row['direction'] if row['type'] == 'r' else row['axis'], row['length'])
